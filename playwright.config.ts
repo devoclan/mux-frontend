@@ -1,18 +1,33 @@
 import { defineConfig, devices } from "@playwright/test";
 
 /**
- * Playwright configuration for Mux Dashboard end-to-end smoke tests.
+ * Playwright configuration for Mux Dashboard end-to-end tests.
  *
- * Smoke specs live in `tests/e2e/` and exercise the primary user paths
- * (login, wallet monitoring) against a locally running dev server. The
- * mock `/api/auth/login` and `/api/wallets` routes accept any well-formed
- * request when `NEXT_PUBLIC_API_URL` is unset, so these tests run the same
- * way in CI, testnet, and mainnet-configured environments.
+ * Specs live in `tests/e2e/` and exercise the primary user paths
+ * (login, wallet monitoring, send/receive) against a locally running dev
+ * server. The mock `/api/auth/login` and `/api/wallets` routes accept any
+ * well-formed request when `NEXT_PUBLIC_API_URL` is unset, so these tests
+ * run the same way in CI, testnet, and mainnet-configured environments.
+ *
+ * Two project tiers are defined (see tests/e2e/README.md):
+ *   - `smoke`: a curated subset of critical-path specs (login, wallets,
+ *     wallet-send-receive) that must stay fast and green on every PR.
+ *   - `full`: the entire `tests/e2e/` suite, run as a separate job.
  *
  * Run with:
  *   pnpm exec playwright install --with-deps chromium
- *   pnpm run test:e2e
+ *   pnpm run test:e2e            # full suite
+ *   pnpm run test:e2e:smoke      # smoke subset only
  */
+
+// Critical-path specs that make up the smoke tier. Keep this list small and
+// stable; the full tier runs everything under `testDir` regardless.
+const SMOKE_SPECS = [
+	"**/login.spec.ts",
+	"**/wallets.spec.ts",
+	"**/wallet-send-receive.spec.ts",
+];
+
 export default defineConfig({
 	testDir: "./tests/e2e",
 	fullyParallel: true,
@@ -46,13 +61,23 @@ export default defineConfig({
 	},
 	projects: [
 		{
-			name: "desktop-chromium",
+			// Fast, required critical-path tier. Runs the curated smoke specs
+			// on desktop Chromium only so it stays quick enough to gate PRs.
+			name: "smoke",
+			testMatch: SMOKE_SPECS,
+			use: { ...devices["Desktop Chrome"] },
+		},
+		{
+			// Complete suite tier. Runs every spec in `tests/e2e/` across the
+			// desktop and mobile viewports; intended as a separate (possibly
+			// non-blocking or scheduled) job rather than a per-PR gate.
+			name: "full",
 			use: { ...devices["Desktop Chrome"] },
 		},
 		{
 			// Narrow mobile viewport coverage per the manual verification checklist
 			// (see tests/e2e/README.md) — catches layout regressions on small screens.
-			name: "mobile-chromium",
+			name: "full-mobile",
 			use: { ...devices["Pixel 7"] },
 		},
 	],

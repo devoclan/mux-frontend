@@ -9,6 +9,10 @@ on:
     branches:
       - main
       - staging
+  schedule:
+    # Nightly full e2e run so the complete suite stays exercised even though
+    # only the smoke project is a required check on PRs.
+    - cron: "0 6 * * *"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -68,7 +72,10 @@ jobs:
       - name: Run unit/component tests
         run: pnpm test
 
-  e2e-tests:
+  # Required fast check: only the curated critical-path specs (login, wallets,
+  # wallet-send-receive) run in the `smoke` Playwright project. See
+  # tests/e2e/README.md for the smoke vs full project split.
+  e2e-smoke:
     name: E2E smoke tests (Playwright)
     runs-on: ubuntu-latest
     steps:
@@ -94,8 +101,37 @@ jobs:
 
       # NEXT_PUBLIC_API_URL is left empty on purpose: the specs run against the
       # in-repo mock `/api/*` routes so they need no live backend or secrets.
-      - name: Run Playwright e2e smoke tests
-        run: pnpm run test:e2e
+      - name: Run Playwright smoke project
+        run: pnpm run test:e2e:smoke
+        env:
+          NEXT_PUBLIC_API_URL: ""
+
+  # Full suite: every spec under tests/e2e. Runs on the nightly schedule and on
+  # demand, but is not a required PR check so it can't block unrelated work.
+  e2e-full:
+    name: E2E full suite (Playwright)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browser (Chromium)
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run Playwright full project
+        run: pnpm run test:e2e:full
         env:
           NEXT_PUBLIC_API_URL: ""
 
