@@ -49,6 +49,19 @@ afterEach(() => {
 	}
 });
 
+describe("SEND_GATE_CODES", () => {
+	it("exposes exactly the six documented gate codes", () => {
+		expect(Object.values(SEND_GATE_CODES).sort()).toEqual([
+			"SEND_DISABLED",
+			"SEND_KILL_SWITCH_ENGAGED",
+			"SEND_MAINNET_NOT_ENABLED",
+			"SEND_NETWORK_MISCONFIGURED",
+			"SEND_NETWORK_MISMATCH",
+			"SEND_OK",
+		]);
+	});
+});
+
 describe("parseOptInFlag", () => {
 	it("only enables on explicit true/1", () => {
 		expect(parseOptInFlag("true")).toBe(true);
